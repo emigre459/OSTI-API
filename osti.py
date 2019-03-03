@@ -32,7 +32,8 @@ def get_citation_URL(dict_list):
 def query_API(url = "https://www.osti.gov/api/v1/records", 
               params = {'sort': 'publication_date desc', 'sponsor_org': '"EE-4S"'},
              print_status = False, start_date = '01/01/1980',
-             end_date = dt.date.today().strftime('%m/%d/%Y')):
+             end_date = dt.date.today().strftime('%m/%d/%Y'),
+             project_ID_list = None):
     '''
     Queries the OSTI.gov API for records.
     
@@ -48,10 +49,14 @@ def query_API(url = "https://www.osti.gov/api/v1/records",
                     etc.
 
     start_date: str of format 'MM/DD/YYYY'. Indicates how far back you want 
-        to pull records. 
+        to pull records. Defaults to 1/1/1980.
 
     end_date: str of format 'MM/DD/YYYY'. Indicates how recent you want records
         to be. Defaults to today's date.
+
+    project_ID_list: list of str. Each item in the list should be an 
+        identifier of some kind for the project (e.g. OSTI ID for a specific 
+        record/report or a DOE contract ID). Defaults to None.
                 
     Returns
     -------
@@ -64,16 +69,32 @@ def query_API(url = "https://www.osti.gov/api/v1/records",
     
     params['publication_date_start'] = start_date
     params['publication_date_end'] = end_date
+
+    results_count = 0
+    response_json = []
+
+    if project_ID_list is not None and project_ID_list != []:
+        for project in project_ID_list:
+            params['identifier'] = project
+
+            r = requests.get(url, params=params)
+            response_json += r.json()
+
+            results_count += int(r.headers['X-Total-Count'])
+
     
-    r = requests.get(url, params=params)
+    else:
+        r = requests.get(url, params=params)
+        response_json += r.json()
+        
+        results_count = int(r.headers['X-Total-Count'])
+        #page_count = math.ceil(results_count/ROWS_PER_QUERY)
 
     query_date = r.headers["Date"]
-    results_count = int(r.headers['X-Total-Count'])
-    #page_count = math.ceil(results_count/ROWS_PER_QUERY)
 
     if print_status:
         print(f"Query was successful: {r.status_code == requests.codes.ok}")
         print(f"\nQuery made on {query_date} returned {results_count} hits")
-        print(f"\nURL used was {r.url}")
+        print(f"\nLast URL used was {r.url}")
     
-    return r.json(), results_count
+    return response_json, results_count
